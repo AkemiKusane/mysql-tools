@@ -42,19 +42,35 @@ process_insert() {
     echo "Found INSERT statement for table $table_name"
 }
 
+find_and_trim() {
+    local str=$1
+    local substr=$2
+    local pos
+
+    pos=$(echo "$str" | grep -b -o -P "\\b${substr}\\b" | cut -d: -f1 | head -n 1)
+
+    if [[ ! -z "$pos" ]]; then
+        echo ${str:$pos}
+    fi
+}
+
+
 # Connect to the MySQL server and get the procedure's body
 procedure_body=$(mysql --defaults-extra-file=$cnf_file -D$database -Bse "SELECT ROUTINE_DEFINITION FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='$database' AND ROUTINE_NAME='$procedure'")
-
-# Find all SELECT, UPDATE and INSERT statements
-sql_statements=$(echo "$procedure_body" | grep -oiP '(SELECT[^;]*FROM [a-zA-Z0-9._]+[^;]*|UPDATE [a-zA-Z0-9._]+ SET [^;]*|INSERT INTO [a-zA-Z0-9._]+ VALUES [^;]*)')
+# Unescape newlines and tabs, replace them with spaces, and replace semicolons with newlines
+procedure_body=$(echo "$procedure_body" | sed -e 's/\\n/ /g' -e 's/\\t/ /g' -e 's/;/\n/g')
+# Remove comments
+procedure_body=$(echo "$procedure_body" | sed 's/-- .*//g')
+procedure_body=$(echo "$procedure_body" | sed 's/\/\*.*\*\///g')
+# Remove empty lines
+procedure_body=$(echo "$procedure_body" | sed '/^\s*$/d')
 
 # Process each SQL statement
-for sql_statement in $sql_statements; do
-    if [[ $sql_statement =~ ^SELECT ]]; then
-        process_select_or_update "$sql_statement"
-    elif [[ $sql_statement =~ ^UPDATE ]]; then
-        process_select_or_update "$sql_statement"
-    elif [[ $sql_statement =~ ^INSERT ]]; then
-        process_insert "$sql_statement"
-    fi
+for sql_statement in "${sql_statements[@]}"; do
+    # Call the function to find the start of SQL command
+    select_statement="$(find_and_trim "$sql_statement" "select")"
+    insert_statement="$(find_and_trim "$sql_statement" "insert")"
+    delete_statement="$(find_and_trim "$sql_statement" "delete")"
+
+    # Process the SQL statement...
 done
