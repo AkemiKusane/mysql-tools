@@ -10,10 +10,3 @@ The goal of these scripts is to identify areas that may be slowing down your MyS
 
 This project is open source and available under the MIT License.
 
-## Usage
-
-Clone the repository and navigate into the project directory:
-
-```bash
-git clone https://github.com/AkemiKusane/mysql-performance-optimization.git
-cd mysql-performance-optimization
