@@ -57,8 +57,14 @@ class QueryNode:
             elif state == READING_TABLE_NAME:
                 if word[0] == '(':
                     # Skip subqueries or values by jumping to the corresponding closing parenthesis
-                    while i < len(words) and words[i] != ')':
+                    subquery = words[i].replace('(', '') + ' '
+                    i += 1
+                    while i < len(words) and not words[i].endswith(')'):
+                        subquery += words[i] + " "
                         i += 1
+                    if i < len(words):
+                        subquery += words[i].replace(')', '')
+                    self.subqueries.append(QueryNode(subquery))
                     state = SEARCHING_KEYWORD  # Return to searching for keywords
                 elif word in ["as", "values", "into", "from"]:
                     state = SKIPPING_ALIAS
@@ -66,7 +72,7 @@ class QueryNode:
                     table_name = word.replace(',', '')  # Remove possible commas and semicolons
                     table_infos.append(TableInfo(query_type, table_name))  # Assume this word is a table name
                     # If the current word ends with a comma or the next character starts with a comma, there are multiple tables of the same type
-                    while word.endswith(',') or words[i+1].startswith(','):
+                    while i<len(words)-1 and (word.endswith(',') or words[i+1].startswith(',')):
                         i += 1
                         word = words[i].lower()
                         table_infos.append(TableInfo(query_type, word.replace(',', '')))  # Add this word as well                       
@@ -117,9 +123,17 @@ def get_sql_queries(content):
 
     return queries
 
+def collect_table_infos(query_node, collected_pairs):
+    for table_info in query_node.tables_list:
+        pair_str = "{} {}".format(table_info.join_type, table_info.table_name)
+        collected_pairs.add(pair_str)
+    
+    for subquery in query_node.subqueries:
+        collect_table_infos(subquery, collected_pairs)
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python get_tables.py <filepath>")
+    if len(sys.argv) != 3:
+        print("Usage: python get_tables.py <filepath> <outputpath>")
         sys.exit(1)
 
     filepath = sys.argv[1]
@@ -127,12 +141,16 @@ if __name__ == "__main__":
     queries = get_sql_queries(content)
     querynodes = []
 
-    output_file_path = 'output.txt'
+    output_file_path = sys.argv[2]
     with io.open(output_file_path, 'w', encoding='utf-8') as file:
+        table_group = set()
         for query in queries:
             querynode = QueryNode(query)
             file.write(querynode.query_text + u'\n')
-            for table in querynode.tables_list:
-                file.write(f"{table.join_type} {table.table_name}\n")  # Use f-string for cleaner syntax
+            collect_table_infos(querynode, table_group)
+        outputs = sorted(list(table_group))
+        for output in outputs:
+            file.write(f"{output}\n")
+
 
     print("Queries have been written to:", output_file_path)

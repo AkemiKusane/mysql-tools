@@ -68,7 +68,20 @@ LEFT JOIN msdb.dbo.syspolicy_policy_execution_history_details_internal d
 WHERE p.resource_type = 1;
 
 SELECT hp.health_policy_id
-FROM msdb.dbo.sysutility_ucp_policies hp
+FROM (SELECT p.health_policy_id
+    , p.policy_id
+    , p.policy_name
+    , d.history_id
+    , d.detail_id
+    , d.target_query_expression
+    , d.target_query_expression_with_id
+    , d.execution_date
+    , d.result
+FROM msdb.dbo.sysutility_ucp_policies p
+INNER JOIN msdb.dbo.syspolicy_policy_execution_history_internal h 
+    ON h.policy_id = p.policy_id ) hp, msdb.dbo.sysutility_ucp_policies s
+    INNER JOIN msdb.dbo.syspolicy_policy_execution_history_internal h 
+    ON h.policy_id = p.policy_id
 WHERE hp.rollup_object_type = @rollup_object_type
     AND hp.target_type = @target_type
     AND hp.resource_type = @resource_type
